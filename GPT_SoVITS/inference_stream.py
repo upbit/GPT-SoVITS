@@ -10,6 +10,8 @@ from GPT_SoVITS.inference_webui import (
     change_gpt_weights,
     change_sovits_weights,
     get_tts_wav,
+    set_seed,
+    reuse_seed,
 )
 
 
@@ -81,6 +83,8 @@ def main():
                 "流式输出演示，分句推理后推送到组件中。由于目前bytes模式的限制，采用<a href='https://github.com/gradio-app/gradio/blob/gradio%404.17.0/demo/stream_audio_out/run.py'>stream_audio_out</a>中临时文件的方案输出分句。这种方式相比bytes，会增加wav文件解析的延迟。"
             ),
         )
+
+        gr.Markdown(value=i18n("模型切换"))
         with gr.Row():
             GPT_dropdown = gr.Dropdown(
                 label=i18n("GPT模型列表"),
@@ -126,8 +130,15 @@ def main():
             load_button = gr.UploadButton(i18n("加载参考文本"), variant="secondary")
             load_button.upload(load_text, load_button, prompt_text)
 
+        gr.Markdown(
+            value=i18n(
+                "*请填写需要合成的目标文本。中英混合选中文，日英混合选日文，中日混合暂不支持，非目标语言文本自动遗弃。"
+            )
+        )
         with gr.Row():
-            text = gr.Textbox(label=i18n("需要合成的文本"), value="", interactive=True)
+            text = gr.Textbox(
+                label=i18n("需要合成的文本"), value="", lines=5, interactive=True
+            )
             text_language = gr.Dropdown(
                 label=i18n("需要合成的语种"),
                 choices=[
@@ -154,45 +165,53 @@ def main():
                 interactive=True,
             )
 
+        gr.Markdown(value=i18n("参数设置"))
         with gr.Row():
-            top_k = gr.Slider(
-                minimum=1,
-                maximum=100,
-                step=1,
-                label=i18n("top_k"),
-                value=5,
-                interactive=True,
-            )
-            top_p = gr.Slider(
-                minimum=0,
-                maximum=1,
-                step=0.05,
-                label=i18n("top_p"),
-                value=1,
-                interactive=True,
-            )
-            temperature = gr.Slider(
-                minimum=0,
-                maximum=1,
-                step=0.05,
-                label=i18n("temperature"),
-                value=1,
-                interactive=True,
-            )
+            with gr.Column():
+                top_k = gr.Slider(
+                    minimum=1,
+                    maximum=100,
+                    step=1,
+                    label=i18n("top_k"),
+                    value=5,
+                    interactive=True,
+                )
+                top_p = gr.Slider(
+                    minimum=0,
+                    maximum=1,
+                    step=0.05,
+                    label=i18n("top_p"),
+                    value=1,
+                    interactive=True,
+                )
+            with gr.Column():
+                temperature = gr.Slider(
+                    minimum=0,
+                    maximum=1,
+                    step=0.05,
+                    label=i18n("temperature"),
+                    value=1,
+                    interactive=True,
+                )
+                with gr.Row():
+                    seed = gr.Number(label=i18n("种子"), value=-1, precision=0)
+                    last_seed = gr.State(value=-1)
+                    reuse_button = gr.Button(value=i18n("种子复用"))
             inference_button = gr.Button(i18n("合成语音"), variant="primary")
 
-        with gr.Group():
-            with gr.Row():
-                audio_file = gr.Audio(
-                    value=None,
-                    label=i18n("输出的语音"),
-                    streaming=True,
-                    autoplay=True,
-                    interactive=False,
-                    show_label=True,
-                )
+        gr.Markdown(value=i18n("结果输出"))
+        with gr.Row():
+            audio_file = gr.Audio(
+                value=None,
+                label=i18n("输出的语音"),
+                streaming=True,
+                autoplay=True,
+                interactive=False,
+                show_label=True,
+            )
 
-        text_msgs = inference_button.click(
+        reuse_button.click(reuse_seed, last_seed, seed)
+        inference_button.click(set_seed, seed, last_seed).then(
             get_streaming_tts_wav,
             [
                 inp_ref,
@@ -206,8 +225,7 @@ def main():
                 temperature,
             ],
             [audio_file],
-        )
-        text_msgs.then(lambda: gr.update(interactive=True), None, [text], queue=False)
+        ).then(lambda: gr.update(interactive=True), None, [text], queue=False)
 
         with gr.Row():
             gr.Examples(

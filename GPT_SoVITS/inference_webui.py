@@ -6,7 +6,7 @@
 全部按英文识别
 全部按日文识别
 '''
-import os, re, logging
+import os, re, logging, random
 import LangSegment
 logging.getLogger("markdown_it").setLevel(logging.ERROR)
 logging.getLogger("urllib3").setLevel(logging.ERROR)
@@ -365,6 +365,15 @@ def merge_short_text_in_array(texts, threshold):
             result[len(result) - 1] += text
     return result
 
+def set_seed(seed):
+    seed = seed if seed != -1 else random.randrange(1 << 32)
+    torch.manual_seed(seed)
+    print("Seed:", seed)
+    return seed
+
+def reuse_seed(seed):
+    return seed
+
 def get_tts_wav(ref_wav_path, prompt_text, prompt_language, text, text_language, how_to_cut=i18n("不切"), top_k=20, top_p=0.6, temperature=0.6, stream=False):
     t0 = ttime()
     prompt_language = dict_language[prompt_language]
@@ -664,7 +673,7 @@ def main():
                 button5.click(cut5, [text_inp], [text_opt])
             gr.Markdown(value=i18n("后续将支持混合语种编码文本输入。"))
 
-    app.queue(concurrency_count=511, max_size=1022).launch(
+    app.queue().launch(
         server_name="0.0.0.0",
         inbrowser=True,
         share=is_share,
