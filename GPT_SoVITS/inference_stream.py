@@ -1,5 +1,5 @@
 import os
-import tempfile
+import tempfile, io, wave
 import gradio as gr
 from pydub import AudioSegment
 from tools.i18n.i18n import I18nAuto
@@ -40,6 +40,20 @@ EXAMPLES = [
     ],
 ]
 
+# from https://huggingface.co/spaces/coqui/voice-chat-with-mistral/blob/main/app.py
+def wave_header_chunk(frame_input=b"", channels=1, sample_width=2, sample_rate=32000):
+    # This will create a wave header then append the frame input
+    # It should be first on a streaming wav file
+    # Other frames better should not have it (else you will hear some artifacts each chunk start)
+    wav_buf = io.BytesIO()
+    with wave.open(wav_buf, "wb") as vfout:
+        vfout.setnchannels(channels)
+        vfout.setsampwidth(sample_width)
+        vfout.setframerate(sample_rate)
+        vfout.writeframes(frame_input)
+
+    wav_buf.seek(0)
+    return wav_buf.read()
 
 def get_streaming_tts_wav(
     ref_wav_path,
@@ -51,6 +65,7 @@ def get_streaming_tts_wav(
     top_k,
     top_p,
     temperature,
+    byte_stream=True
 ):
     chunks = get_tts_wav(
         ref_wav_path=ref_wav_path,
@@ -65,15 +80,20 @@ def get_streaming_tts_wav(
         stream=True,
     )
 
-    # Send chunk files
-    i = 0
-    format = "wav"
-    for chunk in chunks:
-        i += 1
-        file = f"{tempfile.gettempdir()}/{i}.{format}"
-        segment = AudioSegment(chunk, frame_rate=32000, sample_width=2, channels=1)
-        segment.export(file, format=format)
-        yield file
+    if byte_stream:
+        yield wave_header_chunk()
+        for chunk in chunks:
+            yield chunk
+    else:
+        # Send chunk files
+        i = 0
+        format = "wav"
+        for chunk in chunks:
+            i += 1
+            file = f"{tempfile.gettempdir()}/{i}.{format}"
+            segment = AudioSegment(chunk, frame_rate=32000, sample_width=2, channels=1)
+            segment.export(file, format=format)
+            yield file
 
 
 def main():
