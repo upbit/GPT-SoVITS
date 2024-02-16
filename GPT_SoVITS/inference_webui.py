@@ -250,8 +250,12 @@ def clean_text_inf(text, language):
     for tmp in LangSegment.getTexts(text):
         if tmp["lang"] == language:
             formattext += tmp["text"] + " "
+        elif language == "zh" and tmp["lang"] == "ja":
+            # 因为LangSegment的BUG，这里识别错误可能吞字。如果输入是 zh 预测是 ja，也需要把结果加入到格式化文本里
+            formattext += tmp["text"] + " "
     while "  " in formattext:
         formattext = formattext.replace("  ", " ")
+    print("clean_text_inf", formattext)
     phones, word2ph, norm_text = clean_text(formattext, language)
     phones = cleaned_text_to_sequence(phones)
     return phones, word2ph, norm_text
@@ -321,7 +325,7 @@ def nonen_get_bert_inf(text, language):
     return bert
 
 
-splits = {"，", "。", "？", "！", ",", ".", "?", "!", "~", ":", "：", "—", "…", }
+splits = {"，", "。", "？", "！", ",", "、", ".", "?", "!", "~", ":", "：", "—", "…", }
 
 
 def get_first(text):

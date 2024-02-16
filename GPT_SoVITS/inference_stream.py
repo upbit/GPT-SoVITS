@@ -165,7 +165,7 @@ def main():
                 interactive=True,
             )
 
-        gr.Markdown(value=i18n("参数设置"))
+        gr.Markdown(value=i18n("* 参数设置"))
         with gr.Row():
             with gr.Column():
                 top_k = gr.Slider(
@@ -184,7 +184,6 @@ def main():
                     value=1,
                     interactive=True,
                 )
-            with gr.Column():
                 temperature = gr.Slider(
                     minimum=0,
                     maximum=1,
@@ -193,13 +192,13 @@ def main():
                     value=1,
                     interactive=True,
                 )
-                with gr.Row():
-                    seed = gr.Number(label=i18n("种子"), value=-1, precision=0)
-                    last_seed = gr.State(value=-1)
-                    reuse_button = gr.Button(value=i18n("种子复用"))
+            with gr.Row():
+                seed = gr.Number(label=i18n("种子"), value=-1, precision=0)
+                last_seed = gr.State(value=-1)
+                reuse_button = gr.Button(value=i18n("种子复用"))
             inference_button = gr.Button(i18n("合成语音"), variant="primary")
 
-        gr.Markdown(value=i18n("结果输出"))
+        gr.Markdown(value=i18n("* 结果输出(等待第2句推理结束后会自动播放)"))
         with gr.Row():
             audio_file = gr.Audio(
                 value=None,
