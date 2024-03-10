@@ -1,8 +1,7 @@
 import os, sys
+import re, logging
 
 sys.path.append(os.getcwd())
-
-import re, logging
 logging.getLogger("markdown_it").setLevel(logging.ERROR)
 logging.getLogger("urllib3").setLevel(logging.ERROR)
 logging.getLogger("httpcore").setLevel(logging.ERROR)
@@ -11,18 +10,15 @@ logging.getLogger("asyncio").setLevel(logging.ERROR)
 logging.getLogger("charset_normalizer").setLevel(logging.ERROR)
 logging.getLogger("torchaudio._extension").setLevel(logging.ERROR)
 logging.getLogger("PIL").setLevel(logging.ERROR)
+
 import torch
 import tempfile, io, wave
-import uvicorn
 import argparse
-from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
 from pydub import AudioSegment
 
 from TTS_infer_pack.TTS import TTS, TTS_Config
 from tools.i18n.i18n import I18nAuto
 
-api_app = FastAPI()
 i18n = I18nAuto()
 
 if "_CUDA_VISIBLE_DEVICES" in os.environ:
@@ -62,27 +58,19 @@ tts_pipline = TTS(tts_config)
 gpt_path = tts_config.t2s_weights_path
 sovits_path = tts_config.vits_weights_path
 
-# Usage: python GPT_SoVITS/inference_stream.py --api
-parser = argparse.ArgumentParser(description="GPT-SoVITS Streaming API")
-parser.add_argument(
-    "-api",
-    "--api",
-    action="store_true",
-    default=False,
-    help="是否开启API模式(不开启则是WebUI模式)",
-)
+parser = argparse.ArgumentParser(description="GPT-SoVITS Streaming")
 parser.add_argument(
     "-s",
     "--sovits_path",
     type=str,
-    default="GPT_SoVITS/pretrained_models/s2G488k.pth",
+    default=sovits_path,
     help="SoVITS模型路径",
 )
 parser.add_argument(
     "-g",
     "--gpt_path",
     type=str,
-    default="GPT_SoVITS/pretrained_models/s1bert25hz-2kh-longer-epoch=68e-step=50232.ckpt",
+    default=gpt_path,
     help="GPT模型路径",
 )
 parser.add_argument(
@@ -103,7 +91,7 @@ parser.add_argument(
     "-rl",
     "--prompt_language",
     type=str,
-    default="中文",
+    default=i18n("中文"),
     help="参考音频语种",
 )
 
@@ -168,7 +156,7 @@ EXAMPLES = [
         + "她只去观察、用双手揣摩，将数据握在手里感受，接着就编纂出新的物种规律。于是，在她的实验室中，那些蕨类植物与花愈发生长地茂盛，"
         + "它们以肉眼可见的速度长高，接着充斥了所有空间。在那花叶开合的缝隙中——笼罩着父母清冷而素净的、由数据汇聚而成的面庞。"
         + "在沉睡的父母将要睁开双眼的时刻——她几乎摧毁了整个星球原本的物种衍变规律，但她仍然在向着自己的目标前进。"
-        + "直到她从研究中抬起头，猛烈地望向天空：智识的瞥视降临到了她的身上。"
+        + "直到她从研究中抬起头，猛烈地望向天空：智识的瞥视降临到了她的身上。",
     ],
     [
         "中文",
@@ -283,218 +271,168 @@ def stream_inference(
             yield file
 
 
-def webui():
-    with gr.Blocks(title="GPT-SoVITS Streaming Demo") as app:
-        gr.Markdown(
-            value=i18n(
-                "流式输出演示，分句推理后推送到组件中。由于目前bytes模式的限制，采用<a href='https://github.com/gradio-app/gradio/blob/gradio%404.17.0/demo/stream_audio_out/run.py'>stream_audio_out</a>中临时文件的方案输出分句。这种方式相比bytes，会增加wav文件解析的延迟。"
-            ),
+with gr.Blocks(title="GPT-SoVITS Streaming Demo") as app:
+    gr.Markdown(
+        value=i18n(
+            "流式输出演示，分句推理后推送到组件中。由于目前bytes模式的限制，采用<a href='https://github.com/gradio-app/gradio/blob/gradio%404.17.0/demo/stream_audio_out/run.py'>stream_audio_out</a>中临时文件的方案输出分句。这种方式相比bytes，会增加wav文件解析的延迟。"
+        ),
+    )
+
+    gr.Markdown(value=i18n("模型切换"))
+    with gr.Row():
+        GPT_dropdown = gr.Dropdown(
+            label=i18n("GPT模型列表"),
+            choices=sorted(GPT_names, key=custom_sort_key),
+            value=gpt_path,
+            interactive=True,
+        )
+        SoVITS_dropdown = gr.Dropdown(
+            label=i18n("SoVITS模型列表"),
+            choices=sorted(SoVITS_names, key=custom_sort_key),
+            value=sovits_path,
+            interactive=True,
+        )
+        refresh_button = gr.Button(i18n("刷新模型路径"), variant="primary")
+        refresh_button.click(fn=change_choices, inputs=[], outputs=[SoVITS_dropdown, GPT_dropdown])
+        SoVITS_dropdown.change(tts_pipline.init_vits_weights, [SoVITS_dropdown], [])
+        GPT_dropdown.change(tts_pipline.init_t2s_weights, [GPT_dropdown], [])
+
+    gr.Markdown(value=i18n("*请上传并填写参考信息"))
+    with gr.Row():
+        inp_ref = gr.Audio(label=i18n("请上传3~10秒内参考音频，超过会报错！"), type="filepath", value=args.ref_wav)
+
+        prompt_text = gr.Textbox(label=i18n("参考音频的文本"), value=args.prompt_text, lines=2)
+
+        def load_text(file):
+            with open(file.name, "r", encoding="utf-8") as file:
+                return file.read()
+
+        load_button = gr.UploadButton(i18n("加载参考文本"), variant="secondary")
+        load_button.upload(load_text, load_button, prompt_text)
+
+        with gr.Column():
+            prompt_language = gr.Dropdown(
+                label=i18n("参考音频的语种"),
+                choices=[
+                    i18n("中文"),
+                    i18n("英文"),
+                    i18n("日文"),
+                    i18n("中英混合"),
+                    i18n("日英混合"),
+                    i18n("多语种混合"),
+                ],
+                value=i18n("中文"),
+            )
+            ref_text_free = gr.Checkbox(
+                label=i18n("开启无参考文本模式。不填参考文本亦相当于开启。"),
+                value=False,
+                interactive=True,
+                show_label=True,
+            )
+            gr.Markdown(
+                i18n(
+                    "使用无参考文本模式时建议使用微调的GPT，听不清参考音频说的啥(不晓得写啥)可以开，开启后无视填写的参考文本。"
+                )
+            )
+
+    with gr.Row():
+        with gr.Column():
+            gr.Markdown(value=i18n("*请填写需要合成的目标文本和语种模式"))
+            text = gr.Textbox(label=i18n("需要合成的文本"), value="", lines=4, max_lines=32)
+            text_language = gr.Dropdown(
+                label=i18n("需要合成的语种"),
+                choices=[
+                    i18n("中文"),
+                    i18n("英文"),
+                    i18n("日文"),
+                    i18n("中英混合"),
+                    i18n("日英混合"),
+                    i18n("多语种混合"),
+                ],
+                value=i18n("中文"),
+            )
+
+        with gr.Row():
+            inference_button = gr.Button(i18n("合成语音"), variant="primary")
+            stop_infer = gr.Button(i18n("终止合成"), variant="primary")
+
+        with gr.Row():
+            audio_output = gr.Audio(
+                value=None,
+                label=i18n("输出的语音"),
+                streaming=True,
+                autoplay=True,
+                interactive=False,
+                show_label=True,
+            )
+
+    with gr.Row():
+        gr.Examples(
+            EXAMPLES,
+            [text_language, text],
+            cache_examples=False,
+            run_on_click=False,  # Will not work , user should submit it
         )
 
-        gr.Markdown(value=i18n("模型切换"))
-        with gr.Row():
-            GPT_dropdown = gr.Dropdown(
-                label=i18n("GPT模型列表"),
-                choices=sorted(GPT_names, key=custom_sort_key),
-                value=gpt_path,
+    gr.Markdown(value=i18n("推理设置"))
+    with gr.Row():
+
+        with gr.Column():
+            top_k = gr.Slider(minimum=1, maximum=100, step=1, label=i18n("top_k"), value=5, interactive=True)
+            top_p = gr.Slider(minimum=0, maximum=1, step=0.05, label=i18n("top_p"), value=1, interactive=True)
+            temperature = gr.Slider(
+                minimum=0, maximum=1, step=0.05, label=i18n("temperature"), value=1, interactive=True
+            )
+            batch_size = gr.Slider(minimum=1, maximum=20, step=1, label=i18n("batch_size"), value=1, interactive=True)
+            speed_factor = gr.Slider(
+                minimum=0.25, maximum=4, step=0.05, label="speed_factor", value=1.0, interactive=True
+            )
+        with gr.Column():
+            how_to_cut = gr.Radio(
+                label=i18n("怎么切"),
+                choices=[
+                    i18n("不切"),
+                    i18n("凑四句一切"),
+                    i18n("凑50字一切"),
+                    i18n("按中文句号。切"),
+                    i18n("按英文句号.切"),
+                    i18n("按标点符号切"),
+                ],
+                value=i18n("凑四句一切"),
                 interactive=True,
             )
-            SoVITS_dropdown = gr.Dropdown(
-                label=i18n("SoVITS模型列表"),
-                choices=sorted(SoVITS_names, key=custom_sort_key),
-                value=sovits_path,
+            split_bucket = gr.Checkbox(
+                label=i18n("数据分桶(可能会降低一点计算量,选就对了)"),
+                value=True,
                 interactive=True,
-            )
-            refresh_button = gr.Button(i18n("刷新模型路径"), variant="primary")
-            refresh_button.click(fn=change_choices, inputs=[], outputs=[SoVITS_dropdown, GPT_dropdown])
-            SoVITS_dropdown.change(tts_pipline.init_vits_weights, [SoVITS_dropdown], [])
-            GPT_dropdown.change(tts_pipline.init_t2s_weights, [GPT_dropdown], [])
-
-        gr.Markdown(value=i18n("*请上传并填写参考信息"))
-        with gr.Row():
-            inp_ref = gr.Audio(
-                label=i18n("请上传3~10秒内参考音频，超过会报错！"), type="filepath", value=args.ref_wav
-            )
-            
-            prompt_text = gr.Textbox(label=i18n("参考音频的文本"), value=args.prompt_text, lines=2)
-
-            def load_text(file):
-                with open(file.name, "r", encoding="utf-8") as file:
-                    return file.read()
-
-            load_button = gr.UploadButton(i18n("加载参考文本"), variant="secondary")
-            load_button.upload(load_text, load_button, prompt_text)
-
-            with gr.Column():
-                prompt_language = gr.Dropdown(
-                    label=i18n("参考音频的语种"),
-                    choices=[
-                        i18n("中文"),
-                        i18n("英文"),
-                        i18n("日文"),
-                        i18n("中英混合"),
-                        i18n("日英混合"),
-                        i18n("多语种混合"),
-                    ],
-                    value=i18n("中文"),
-                )
-                ref_text_free = gr.Checkbox(
-                    label=i18n("开启无参考文本模式。不填参考文本亦相当于开启。"),
-                    value=False,
-                    interactive=True,
-                    show_label=True,
-                )
-                gr.Markdown(
-                    i18n(
-                        "使用无参考文本模式时建议使用微调的GPT，听不清参考音频说的啥(不晓得写啥)可以开，开启后无视填写的参考文本。"
-                    )
-                )
-
-        with gr.Row():
-            with gr.Column():
-                gr.Markdown(value=i18n("*请填写需要合成的目标文本和语种模式"))
-                text = gr.Textbox(label=i18n("需要合成的文本"), value="", lines=16, max_lines=16)
-                text_language = gr.Dropdown(
-                    label=i18n("需要合成的语种"),
-                    choices=[
-                        i18n("中文"),
-                        i18n("英文"),
-                        i18n("日文"),
-                        i18n("中英混合"),
-                        i18n("日英混合"),
-                        i18n("多语种混合"),
-                    ],
-                    value=i18n("中文"),
-                )
-            with gr.Row():
-                inference_button = gr.Button(i18n("合成语音"), variant="primary")
-                stop_infer = gr.Button(i18n("终止合成"), variant="primary")
-
-            with gr.Row():
-                audio_output = gr.Audio(
-                    value=None,
-                    label=i18n("输出的语音"),
-                    streaming=True,
-                    autoplay=True,
-                    interactive=False,
-                    show_label=True,
-                )
-
-        with gr.Row():
-            gr.Examples(
-                EXAMPLES,
-                [text_language, text],
-                cache_examples=False,
-                run_on_click=False,  # Will not work , user should submit it
+                show_label=True,
             )
 
-        gr.Markdown(value=i18n("推理设置"))
-        with gr.Row():
+    inference_button.click(
+        stream_inference,
+        [
+            text,
+            text_language,
+            inp_ref,
+            prompt_text,
+            prompt_language,
+            top_k,
+            top_p,
+            temperature,
+            how_to_cut,
+            batch_size,
+            speed_factor,
+            ref_text_free,
+            split_bucket,
+        ],
+        [audio_output],
+    ).then(lambda: gr.update(interactive=True), None, [text], queue=False)
+    stop_infer.click(tts_pipline.stop, [], [])
 
-            with gr.Column():
-                top_k = gr.Slider(minimum=1, maximum=100, step=1, label=i18n("top_k"), value=5, interactive=True)
-                top_p = gr.Slider(minimum=0, maximum=1, step=0.05, label=i18n("top_p"), value=1, interactive=True)
-                temperature = gr.Slider(
-                    minimum=0, maximum=1, step=0.05, label=i18n("temperature"), value=1, interactive=True
-                )
-                batch_size = gr.Slider(
-                    minimum=1, maximum=20, step=1, label=i18n("batch_size"), value=1, interactive=True
-                )
-                speed_factor = gr.Slider(
-                    minimum=0.25, maximum=4, step=0.05, label="speed_factor", value=1.0, interactive=True
-                )
-            with gr.Column():
-                how_to_cut = gr.Radio(
-                    label=i18n("怎么切"),
-                    choices=[
-                        i18n("不切"),
-                        i18n("凑四句一切"),
-                        i18n("凑50字一切"),
-                        i18n("按中文句号。切"),
-                        i18n("按英文句号.切"),
-                        i18n("按标点符号切"),
-                    ],
-                    value=i18n("凑四句一切"),
-                    interactive=True,
-                )
-                split_bucket = gr.Checkbox(
-                    label=i18n("数据分桶(可能会降低一点计算量,选就对了)"),
-                    value=True,
-                    interactive=True,
-                    show_label=True,
-                )
-
-        inference_button.click(
-            stream_inference,
-            [
-                text,
-                text_language,
-                inp_ref,
-                prompt_text,
-                prompt_language,
-                top_k,
-                top_p,
-                temperature,
-                how_to_cut,
-                batch_size,
-                speed_factor,
-                ref_text_free,
-                split_bucket,
-            ],
-            [audio_output],
-        ).then(lambda: gr.update(interactive=True), None, [text], queue=False)
-        stop_infer.click(tts_pipline.stop, [], [])
-
-    app.queue(max_size=1022).launch(
-        server_name="127.0.0.1",
-        inbrowser=True,
-        share=False,
-        server_port=5000,
-        quiet=True,
-    )
-
-
-@api_app.get("/")
-async def tts(
-    text: str,  # 必选参数
-    language: str = i18n("中文"),
-    seed: int = -1,
-    top_k: int = 5,
-    top_p: float = 1,
-    temperature: float = 1,
-):
-    ref_wav_path = args.ref_wav
-    prompt_text = args.prompt_text
-    prompt_lang = args.prompt_language
-    how_to_cut = i18n("凑四句一切")
-
-    return StreamingResponse(
-        stream_inference(
-            text=text,
-            text_lang=language,
-            ref_audio_path=ref_wav_path,
-            prompt_text=prompt_text,
-            prompt_lang=prompt_lang,
-            top_k=top_k,
-            top_p=top_p,
-            temperature=temperature,
-            text_split_method=how_to_cut,
-            batch_size=1,
-            speed_factor=1.0,
-            ref_text_free=False,
-            split_bucket=True,
-            byte_stream=True,
-        ),
-        media_type="audio/x-wav",
-    )
-
-
-def api():
-    uvicorn.run(app=api_app, host="127.0.0.1", port=5000, timeout_keep_alive=10, workers=1, reload=False)
-
-
-if __name__ == "__main__":
-    if not args.api:
-        webui()
-    else:
-        api()
+app.queue(max_size=1022).launch(
+    server_name="127.0.0.1",
+    inbrowser=True,
+    share=False,
+    server_port=5000,
+    quiet=True,
+)
