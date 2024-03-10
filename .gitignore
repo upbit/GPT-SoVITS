@@ -13,3 +13,7 @@ TEMP
 ffmpeg.exe
 ffprobe.exe
 
+.vscode/
+GPT_SoVITS/my_models/*
+raw/*
+venv/

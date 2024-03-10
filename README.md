@@ -17,6 +17,12 @@ A Powerful Few-shot Voice Conversion and Text-to-Speech WebUI.<br><br>
 
 ---
 
+> 增加流式API模式，WebUI模式（MacOS测试OK，Windows暂时无效）演示
+> 使用方法：**python GPT_SoVITS/inference_stream.py --api**
+> 访问浏览器：[http://localhost?text=这里是需要推理的文本](http://localhost?text=这里是需要推理的文本) (其他参数见`inference_stream.py`)
+> 
+> https://github.com/RVC-Boss/GPT-SoVITS/assets/302680/b9da9190-11c5-478a-8243-4660c39da48e
+
 ## Features:
 
 1. **Zero-shot TTS:** Input a 5-second vocal sample and experience instant text-to-speech conversion.
