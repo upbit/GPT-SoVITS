@@ -31,7 +31,9 @@ i18n = I18nAuto()
 
 if "_CUDA_VISIBLE_DEVICES" in os.environ:
     os.environ["CUDA_VISIBLE_DEVICES"] = os.environ["_CUDA_VISIBLE_DEVICES"]
-is_half = eval(os.environ.get("is_half", "True")) and not torch.backends.mps.is_available()
+is_half = (
+    eval(os.environ.get("is_half", "True")) and not torch.backends.mps.is_available()
+)
 
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"  # 确保直接启动推理UI时也能够设置。
 import gradio as gr
@@ -118,39 +120,6 @@ def wave_header_chunk(frame_input=b"", channels=1, sample_width=2, sample_rate=3
     return wav_buf.read()
 
 
-def inference(
-    text,
-    text_lang,
-    ref_audio_path,
-    prompt_text,
-    prompt_lang,
-    top_k,
-    top_p,
-    temperature,
-    text_split_method,
-    batch_size,
-    speed_factor,
-    ref_text_free,
-    split_bucket,
-):
-    inputs = {
-        "text": text,
-        "text_lang": dict_language[text_lang],
-        "ref_audio_path": ref_audio_path,
-        "prompt_text": prompt_text if not ref_text_free else "",
-        "prompt_lang": dict_language[prompt_lang],
-        "top_k": top_k,
-        "top_p": top_p,
-        "temperature": temperature,
-        "text_split_method": cut_method[text_split_method],
-        "batch_size": int(batch_size),
-        "speed_factor": float(speed_factor),
-        "split_bucket": split_bucket,
-        "return_fragment": False,
-    }
-    yield next(tts_pipline.run(inputs))
-
-
 def stream_inference(
     text,
     text_lang,
@@ -167,22 +136,23 @@ def stream_inference(
     split_bucket,
     byte_stream=True,
 ):
-    chunks = inference(
-        text=text,
-        text_lang=text_lang,
-        ref_audio_path=ref_audio_path,
-        prompt_text=prompt_text,
-        prompt_lang=prompt_lang,
-        top_k=top_k,
-        top_p=top_p,
-        temperature=temperature,
-        text_split_method=text_split_method,
-        batch_size=batch_size,
-        speed_factor=speed_factor,
-        ref_text_free=ref_text_free,
-        split_bucket=split_bucket,
-    )
+    inputs = {
+        "text": text,
+        "text_lang": dict_language[text_lang],
+        "ref_audio_path": ref_audio_path,
+        "prompt_text": prompt_text if not ref_text_free else "",
+        "prompt_lang": dict_language[prompt_lang],
+        "top_k": top_k,
+        "top_p": top_p,
+        "temperature": temperature,
+        "text_split_method": cut_method[text_split_method],
+        "batch_size": int(batch_size),
+        "speed_factor": float(speed_factor),
+        "split_bucket": split_bucket,
+        "return_fragment": True,  # IMPORTANT!
+    }
 
+    chunks = tts_pipline.run(inputs)
     if byte_stream:
         yield wave_header_chunk()
         for _sr, data in chunks:
@@ -206,7 +176,7 @@ async def tts(
     top_k: int = 5,
     top_p: float = 1.0,
     temperature: float = 1.0,
-    range: Annotated[str | None, Header()] = None,
+    range: Annotated[str, Header()] = None,
 ):
     # TODO: change by args
     ref_audio_path = "./example/archive_ruanmei_8.wav"
