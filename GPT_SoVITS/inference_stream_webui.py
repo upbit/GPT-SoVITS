@@ -247,7 +247,7 @@ def stream_inference(
 with gr.Blocks(title="GPT-SoVITS Streaming Demo") as app:
     gr.Markdown(
         value=i18n(
-            "流式输出演示，分句推理后推送到组件中。MacOS下测试通过，Windows下Chrome音频组件请求存在问题，暂时只支持API的流式推理。"
+            "流式输出演示，分句推理后推送到组件中。MacOS下测试通过，Windows下Chrome音频组件请求存在问题，暂时只支持API的流式推理: `uvicorn GPT_SoVITS.inference_stream_api:app --host 0.0.0.0 --port 5000`"
         ),
     )
 

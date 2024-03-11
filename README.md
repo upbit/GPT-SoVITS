@@ -17,9 +17,11 @@ A Powerful Few-shot Voice Conversion and Text-to-Speech WebUI.<br><br>
 
 ---
 
-> 增加流式API模式，WebUI模式（MacOS测试OK，Windows暂时无效）演示
-> 使用方法：**python GPT_SoVITS/inference_stream.py --api**
-> 访问浏览器：[http://localhost?text=这里是需要推理的文本](http://localhost?text=这里是需要推理的文本) (其他参数见`inference_stream.py`)
+> 流式推理，合入`fast_inference`分支中flash attention等推理加速相关变更
+> 
+> 1. 方法1：**python GPT_SoVITS/inference_stream_webui.py** (目前仅MacOS有效)
+> 1. 方法2：**uvicorn GPT_SoVITS.inference_stream_api:app --host 0.0.0.0 --port 5000** (Windows & MacOS)
+>  * 然后访问浏览器：[http://localhost:5000/tts?text=这里是需要推理的文本](http://localhost:5000/tts?text=这里是需要推理的文本) (其他参数见`inference_stream_api.py`)
 > 
 > https://github.com/RVC-Boss/GPT-SoVITS/assets/302680/b9da9190-11c5-478a-8243-4660c39da48e
 
