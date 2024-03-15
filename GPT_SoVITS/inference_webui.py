@@ -28,7 +28,7 @@ is_share = os.environ.get("is_share", "False")
 is_share = eval(is_share)
 if "_CUDA_VISIBLE_DEVICES" in os.environ:
     os.environ["CUDA_VISIBLE_DEVICES"] = os.environ["_CUDA_VISIBLE_DEVICES"]
-is_half = eval(os.environ.get("is_half", "True")) and not torch.backends.mps.is_available()
+is_half = eval(os.environ.get("is_half", "True")) and torch.cuda.is_available()
 import gradio as gr
 from TTS_infer_pack.TTS import TTS, TTS_Config
 from TTS_infer_pack.text_segmentation_method import cut1, cut2, cut3, cut4, cut5
@@ -37,7 +37,7 @@ from tools.i18n.i18n import I18nAuto
 
 i18n = I18nAuto()
 
-os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'  # 确保直接启动推理UI时也能够设置。
+# os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'  # 确保直接启动推理UI时也能够设置。
 
 if torch.cuda.is_available():
     device = "cuda"
