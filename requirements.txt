@@ -4,7 +4,7 @@ tensorboard
 librosa==0.9.2
 numba==0.56.4
 pytorch-lightning
-gradio==3.38.0
+gradio>4.26.0
 gradio_client==0.8.1
 ffmpeg-python
 onnxruntime
@@ -25,3 +25,4 @@ jieba_fast
 jieba
 LangSegment>=0.2.0
 Faster_Whisper
+uvicorn

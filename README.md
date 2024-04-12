@@ -17,6 +17,14 @@ A Powerful Few-shot Voice Conversion and Text-to-Speech WebUI.<br><br>
 
 ---
 
+> 流式推理，合入`fast_inference`分支中flash attention等推理加速相关变更
+> 
+> 1. 方法1：**python GPT_SoVITS/inference_stream_webui.py** (目前仅MacOS有效)
+> 1. 方法2：**uvicorn GPT_SoVITS.inference_stream_api:app --host 0.0.0.0 --port 5000** (Windows & MacOS)
+>  * 然后访问浏览器：[http://localhost:5000/tts?text=这里是需要推理的文本](http://localhost:5000/tts?text=这里是需要推理的文本) (其他参数见`inference_stream_api.py`)
+> 
+> https://github.com/RVC-Boss/GPT-SoVITS/assets/302680/b9da9190-11c5-478a-8243-4660c39da48e
+
 ## Features:
 
 1. **Zero-shot TTS:** Input a 5-second vocal sample and experience instant text-to-speech conversion.
@@ -33,7 +41,7 @@ Unseen speakers few-shot fine-tuning demo:
 
 https://github.com/RVC-Boss/GPT-SoVITS/assets/129054828/05bee1fa-bdd8-4d85-9350-80c060ab47fb
 
-[教程中文版](https://www.yuque.com/baicaigongchang1145haoyuangong/ib3g1e) [User guide (EN)](https://rentry.co/GPT-SoVITS-guide#/)
+**User guide: [简体中文](https://www.yuque.com/baicaigongchang1145haoyuangong/ib3g1e) | [English](https://rentry.co/GPT-SoVITS-guide#/)**
 
 ## Installation
 
@@ -61,13 +69,7 @@ bash install.sh
 
 ### macOS
 
-Only Macs that meet the following conditions can train models:
-
-- Mac computers with Apple silicon
-- macOS 12.3 or later
-- Xcode command-line tools installed by running `xcode-select --install`
-
-**All Macs can do inference with CPU, which has been demonstrated to outperform GPU inference.**
+**Note: The models trained with GPUs on Macs result in significantly lower quality compared to those trained on other devices, so we are temporarily using CPUs instead.**
 
 First make sure you have installed FFmpeg by running `brew install ffmpeg` or `conda install ffmpeg`, then install by using the following commands:
 
@@ -75,11 +77,8 @@ First make sure you have installed FFmpeg by running `brew install ffmpeg` or `c
 conda create -n GPTSoVits python=3.9
 conda activate GPTSoVits
 
-pip3 install --pre torch torchaudio --index-url https://download.pytorch.org/whl/nightly/cpu
 pip install -r requirements.txt
 ```
-
-_Note: Training models will only work if you've installed PyTorch Nightly._
 
 ### Install Manually
 
