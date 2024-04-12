@@ -405,7 +405,7 @@ with gr.Blocks(title="GPT-SoVITS Streaming Demo") as app:
             value=None,
             label=i18n("输出的语音"),
             streaming=True,
-            autoplay=True,
+            autoplay=False, # disable auto play for Windows, due to https://developer.chrome.com/blog/autoplay#webaudio
             interactive=False,
             show_label=True,
         )
