@@ -6,6 +6,7 @@
 全部按英文识别
 全部按日文识别
 '''
+import random
 import os, sys
 now_dir = os.getcwd()
 sys.path.append(now_dir)
@@ -29,9 +30,13 @@ is_share = eval(is_share)
 if "_CUDA_VISIBLE_DEVICES" in os.environ:
     os.environ["CUDA_VISIBLE_DEVICES"] = os.environ["_CUDA_VISIBLE_DEVICES"]
 is_half = eval(os.environ.get("is_half", "True")) and torch.cuda.is_available()
+gpt_path = os.environ.get("gpt_path", None)
+sovits_path = os.environ.get("sovits_path", None)
+cnhubert_base_path = os.environ.get("cnhubert_base_path", None)
+bert_path = os.environ.get("bert_path", None)
+        
 import gradio as gr
 from TTS_infer_pack.TTS import TTS, TTS_Config
-from TTS_infer_pack.text_segmentation_method import cut1, cut2, cut3, cut4, cut5
 from TTS_infer_pack.text_segmentation_method import get_method
 from tools.i18n.i18n import I18nAuto
 
@@ -41,9 +46,11 @@ i18n = I18nAuto()
 
 if torch.cuda.is_available():
     device = "cuda"
+# elif torch.backends.mps.is_available():
+#     device = "mps"
 else:
     device = "cpu"
-
+    
 dict_language = {
     i18n("中文"): "all_zh",#全部按中文识别
     i18n("英文"): "en",#全部按英文识别#######不变
@@ -65,7 +72,17 @@ cut_method = {
 tts_config = TTS_Config("GPT_SoVITS/configs/tts_infer.yaml")
 tts_config.device = device
 tts_config.is_half = is_half
-tts_pipline = TTS(tts_config)
+if gpt_path is not None:
+    tts_config.t2s_weights_path = gpt_path
+if sovits_path is not None:
+    tts_config.vits_weights_path = sovits_path
+if cnhubert_base_path is not None:
+    tts_config.cnhuhbert_base_path = cnhubert_base_path
+if bert_path is not None:
+    tts_config.bert_base_path = bert_path
+    
+print(tts_config)
+tts_pipeline = TTS(tts_config)
 gpt_path = tts_config.t2s_weights_path
 sovits_path = tts_config.vits_weights_path
 
@@ -75,8 +92,10 @@ def inference(text, text_lang,
               top_p, temperature, 
               text_split_method, batch_size, 
               speed_factor, ref_text_free,
-              split_bucket
+              split_bucket,fragment_interval,
+              seed,
               ):
+    actual_seed = seed if seed not in [-1, "", None] else random.randrange(1 << 32)
     inputs={
         "text": text,
         "text_lang": dict_language[text_lang],
@@ -91,9 +110,12 @@ def inference(text, text_lang,
         "speed_factor":float(speed_factor),
         "split_bucket":split_bucket,
         "return_fragment":False,
+        "fragment_interval":fragment_interval,
+        "seed":actual_seed,
     }
-    yield next(tts_pipline.run(inputs))
-
+    for item in tts_pipeline.run(inputs):
+        yield item, actual_seed
+        
 def custom_sort_key(s):
     # 使用正则表达式提取字符串中的数字部分和非数字部分
     parts = re.split('(\d+)', s)
@@ -140,8 +162,8 @@ with gr.Blocks(title="GPT-SoVITS WebUI") as app:
             SoVITS_dropdown = gr.Dropdown(label=i18n("SoVITS模型列表"), choices=sorted(SoVITS_names, key=custom_sort_key), value=sovits_path, interactive=True)
             refresh_button = gr.Button(i18n("刷新模型路径"), variant="primary")
             refresh_button.click(fn=change_choices, inputs=[], outputs=[SoVITS_dropdown, GPT_dropdown])
-            SoVITS_dropdown.change(tts_pipline.init_vits_weights, [SoVITS_dropdown], [])
-            GPT_dropdown.change(tts_pipline.init_t2s_weights, [GPT_dropdown], [])
+            SoVITS_dropdown.change(tts_pipeline.init_vits_weights, [SoVITS_dropdown], [])
+            GPT_dropdown.change(tts_pipeline.init_t2s_weights, [GPT_dropdown], [])
     
     with gr.Row():
         with gr.Column():
@@ -169,7 +191,8 @@ with gr.Blocks(title="GPT-SoVITS WebUI") as app:
         with gr.Row():
 
             with gr.Column():
-                batch_size = gr.Slider(minimum=1,maximum=20,step=1,label=i18n("batch_size"),value=1,interactive=True)
+                batch_size = gr.Slider(minimum=1,maximum=200,step=1,label=i18n("batch_size"),value=20,interactive=True)
+                fragment_interval = gr.Slider(minimum=0.01,maximum=1,step=0.01,label=i18n("分段间隔(秒)"),value=0.3,interactive=True)
                 speed_factor = gr.Slider(minimum=0.25,maximum=4,step=0.05,label="speed_factor",value=1.0,interactive=True)
                 top_k = gr.Slider(minimum=1,maximum=100,step=1,label=i18n("top_k"),value=5,interactive=True)
                 top_p = gr.Slider(minimum=0,maximum=1,step=0.05,label=i18n("top_p"),value=1,interactive=True)
@@ -181,7 +204,9 @@ with gr.Blocks(title="GPT-SoVITS WebUI") as app:
                     value=i18n("凑四句一切"),
                     interactive=True,
                 )
-                split_bucket = gr.Checkbox(label=i18n("数据分桶(可能会降低一点计算量,选就对了)"), value=True, interactive=True, show_label=True)
+                with gr.Row():
+                    split_bucket = gr.Checkbox(label=i18n("数据分桶(可能会降低一点计算量，选就对了)"), value=True, interactive=True, show_label=True)
+                    seed = gr.Number(label=i18n("随机种子"),value=-1)
             # with gr.Column():
                 output = gr.Audio(label=i18n("输出的语音"))
                 with gr.Row():
@@ -197,11 +222,12 @@ with gr.Blocks(title="GPT-SoVITS WebUI") as app:
                 top_k, top_p, temperature, 
                 how_to_cut, batch_size, 
                 speed_factor, ref_text_free,
-                split_bucket
+                split_bucket,fragment_interval,
+                seed
              ],
-            [output],
+            [output, seed],
         )
-        stop_infer.click(tts_pipline.stop, [], [])
+        stop_infer.click(tts_pipeline.stop, [], [])
 
     with gr.Group():
         gr.Markdown(value=i18n("文本切分工具。太长的文本合成出来效果不一定好，所以太长建议先切。合成会根据文本的换行分开合成再拼起来。"))

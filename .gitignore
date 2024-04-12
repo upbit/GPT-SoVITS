@@ -10,8 +10,11 @@ reference
 GPT_weights
 SoVITS_weights
 TEMP
+PortableGit
 ffmpeg.exe
 ffprobe.exe
+tmp_audio
+trained
 
 .vscode/
 GPT_SoVITS/my_models/*
