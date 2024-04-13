@@ -23,9 +23,7 @@ i18n = I18nAuto()
 
 if "_CUDA_VISIBLE_DEVICES" in os.environ:
     os.environ["CUDA_VISIBLE_DEVICES"] = os.environ["_CUDA_VISIBLE_DEVICES"]
-is_half = (
-    eval(os.environ.get("is_half", "True")) and not torch.backends.mps.is_available()
-)
+is_half = eval(os.environ.get("is_half", "True")) and not torch.backends.mps.is_available()
 
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"  # 确保直接启动推理UI时也能够设置。
 import gradio as gr
@@ -171,7 +169,7 @@ EXAMPLES = [
         + "不必惊讶，它的确拥有语言和情绪，并且能够根据心情产生不同的形态。如果你喜欢的话，可以留着它。不用客气，只是小小的试验罢了。"
         + "如何照顾它？你是说…如何「培育」它吗？目前还有些复杂，不过稍后我可以试着迭代一个简易的方案。\n"
         + "研究之余会做些什么？。刺绣、听戏、烘焙糕点对我来说都是不错的选择。闲暇的时光，理应过得轻松自在一些，不过当你全身心投入一件事的时候，闲暇的爱好仿佛也和做研究一样，并无本质区别了。"
-        + "就好比刺绣，每一次行针，都需要谨慎和专注，否则，就会破坏作品本身的美感。嗯…或许我也可以再放松一些，如果闲暇时太过集中精神…也是很伤神的。"
+        + "就好比刺绣，每一次行针，都需要谨慎和专注，否则，就会破坏作品本身的美感。嗯…或许我也可以再放松一些，如果闲暇时太过集中精神…也是很伤神的。",
     ],
     [
         i18n("中文"),
@@ -187,6 +185,34 @@ EXAMPLES = [
         + "「那接下来,我是应该弄个什么送神仪式把你送走吗?」弥耳摸了摸绷带下已经失去功能的眼睛，「然后我的眼睛也会回来?」",
     ],
 ]
+
+from faster_whisper import WhisperModel
+
+os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+model_path = f"Systran/faster-whisper-large-v3"
+precision = "int8"  # https://opennmt.net/CTranslate2/quantization.html
+whisper_model = WhisperModel(model_path, device=device, compute_type=precision)
+
+
+def whisper_to_text(filename):
+    try:
+        segments, info = whisper_model.transcribe(
+            audio=filename,
+            beam_size=5,
+            vad_filter=True,
+            vad_parameters=dict(min_silence_duration_ms=700),
+            language=None,
+        )
+    except:
+        import traceback
+        return print(traceback.format_exc())
+    # if info.language == "zh":
+    text = ""
+    for segment in segments:
+        text += segment.text
+    return text
 
 
 # from https://huggingface.co/spaces/coqui/voice-chat-with-mistral/blob/main/app.py
@@ -276,9 +302,7 @@ with gr.Blocks(title="GPT-SoVITS Streaming Demo") as app:
             interactive=True,
         )
         refresh_button = gr.Button(i18n("刷新模型路径"), variant="primary")
-        refresh_button.click(
-            fn=change_choices, inputs=[], outputs=[SoVITS_dropdown, GPT_dropdown]
-        )
+        refresh_button.click(fn=change_choices, inputs=[], outputs=[SoVITS_dropdown, GPT_dropdown])
         SoVITS_dropdown.change(tts_pipline.init_vits_weights, [SoVITS_dropdown], [])
         GPT_dropdown.change(tts_pipline.init_t2s_weights, [GPT_dropdown], [])
 
@@ -297,9 +321,7 @@ with gr.Blocks(title="GPT-SoVITS Streaming Demo") as app:
                 show_label=True,
             )
             gr.Markdown(i18n("使用无参考文本模式时建议使用微调的GPT"))
-            prompt_text = gr.Textbox(
-                label=i18n("参考音频的文本"), value=args.prompt_text
-            )
+            prompt_text = gr.Textbox(label=i18n("参考音频的文本"), value=args.prompt_text)
         prompt_language = gr.Dropdown(
             label=i18n("参考音频的语种"),
             choices=[
@@ -317,8 +339,11 @@ with gr.Blocks(title="GPT-SoVITS Streaming Demo") as app:
             with open(file.name, "r", encoding="utf-8") as file:
                 return file.read()
 
-        load_button = gr.UploadButton(i18n("加载参考文本"), variant="secondary")
-        load_button.upload(load_text, load_button, prompt_text)
+        with gr.Column():
+            load_button = gr.UploadButton(i18n("加载参考文本"), variant="secondary")
+            load_button.upload(load_text, load_button, prompt_text)
+            whisper_button = gr.Button(i18n("识别语音"), variant="secondary")
+            whisper_button.click(fn=whisper_to_text, inputs=[inp_ref], outputs=[prompt_text])
 
     gr.Markdown(
         value=i18n(
@@ -327,9 +352,7 @@ with gr.Blocks(title="GPT-SoVITS Streaming Demo") as app:
     )
     with gr.Row():
         with gr.Column(scale=2):
-            text = gr.Textbox(
-                label=i18n("需要合成的文本"), value="", lines=9, interactive=True
-            )
+            text = gr.Textbox(label=i18n("需要合成的文本"), value="", lines=9, interactive=True)
         with gr.Column():
             text_language = gr.Dropdown(
                 label=i18n("需要合成的语种"),
@@ -415,7 +438,7 @@ with gr.Blocks(title="GPT-SoVITS Streaming Demo") as app:
             value=None,
             label=i18n("输出的语音"),
             streaming=True,
-            autoplay=False, # disable auto play for Windows, due to https://developer.chrome.com/blog/autoplay#webaudio
+            autoplay=False,  # disable auto play for Windows, due to https://developer.chrome.com/blog/autoplay#webaudio
             interactive=False,
             show_label=True,
         )
