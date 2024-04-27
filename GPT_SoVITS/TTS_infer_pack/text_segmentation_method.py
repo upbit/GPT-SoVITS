@@ -16,6 +16,9 @@ def get_method(name:str)->Callable:
         raise ValueError(f"Method {name} not found")
     return method
 
+def get_method_names()->list:
+    return list(METHODS.keys())
+
 def register_method(name):
     def decorator(func):
         METHODS[name] = func
@@ -23,6 +26,32 @@ def register_method(name):
     return decorator
 
 splits = {"，", "。", "？", "！", ",", ".", "?", "!", "~", ":", "：", "—", "…", }
+
+def split_big_text(text, max_len=510):
+    # 定义全角和半角标点符号
+    punctuation = "".join(splits)
+
+    # 切割文本
+    segments = re.split('([' + punctuation + '])', text)
+    
+    # 初始化结果列表和当前片段
+    result = []
+    current_segment = ''
+    
+    for segment in segments:
+        # 如果当前片段加上新的片段长度超过max_len，就将当前片段加入结果列表，并重置当前片段
+        if len(current_segment + segment) > max_len:
+            result.append(current_segment)
+            current_segment = segment
+        else:
+            current_segment += segment
+    
+    # 将最后一个片段加入结果列表
+    if current_segment:
+        result.append(current_segment)
+    
+    return result
+
 
 
 def split(todo_text):
@@ -56,7 +85,8 @@ def cut1(inp):
     inp = inp.strip("\n")
     inps = split(inp)
     split_idx = list(range(0, len(inps), 4))
-    split_idx[-1] = None
+    # split_idx[-1] = None
+    split_idx.append(None)
     if len(split_idx) > 1:
         opts = []
         for idx in range(len(split_idx) - 1):
@@ -109,7 +139,8 @@ def cut5(inp):
     # if not re.search(r'[^\w\s]', inp[-1]):
     # inp += '。'
     inp = inp.strip("\n")
-    punds = r'[,.;?!、，。？！;：…]'
+    # punds = r'[,.;?!、，。？！;：…]'
+    punds = r'[,.;?!、，。？！；：:…]'
     items = re.split(f'({punds})', inp)
     mergeitems = ["".join(group) for group in zip(items[::2], items[1::2])]
     # 在句子不存在符号或句尾无符号的时候保证文本完整
@@ -121,6 +152,6 @@ def cut5(inp):
 
 
 if __name__ == '__main__':
-    method = get_method("cut1")
+    method = get_method("cut5")
     print(method("你好，我是小明。你好，我是小红。你好，我是小刚。你好，我是小张。"))
     
