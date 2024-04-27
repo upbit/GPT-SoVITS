@@ -1,7 +1,10 @@
 import os, sys
 import re, logging
 
-sys.path.append(os.getcwd())
+current_dir = os.getcwd()
+sys.path.append(current_dir)
+sys.path.append(os.path.join(current_dir, "GPT_SoVITS"))
+
 logging.getLogger("markdown_it").setLevel(logging.ERROR)
 logging.getLogger("urllib3").setLevel(logging.ERROR)
 logging.getLogger("httpcore").setLevel(logging.ERROR)

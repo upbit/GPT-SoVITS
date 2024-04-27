@@ -19,13 +19,15 @@ A Powerful Few-shot Voice Conversion and Text-to-Speech WebUI.<br><br>
 
 ---
 
-> 流式推理，合入`fast_inference`分支中flash attention等推理加速相关变更
+> 流式推理，合入 `fast_inference` 分支中 flash attention 等推理加速相关变更
 > 
-> 1. 方法1：**python GPT_SoVITS/inference_stream_webui.py** (目前仅MacOS有效)
-> 1. 方法2：**uvicorn GPT_SoVITS.inference_stream_api:app --host 0.0.0.0 --port 5000** (Windows & MacOS)
+> **注意**: WebUI的流式推理需要 `gradio==4.27.0`，请先 `runtime\python.exe -m pip install -U gradio==4.27.0`
+> 
+> 1. WebUI：**runtime\python.exe GPT_SoVITS/inference_stream_webui.py** (因为Windows浏览器策略限制，需要点击播放按钮才会播放；MacOS可以修改 `audio_file = gr.Audio(autoplay=True)`在推理后自动播放音频)
+> 1. API：**uvicorn GPT_SoVITS.inference_stream_api:app --host 0.0.0.0 --port 5000**
 >  * 然后访问浏览器：[http://localhost:5000/tts?text=这里是需要推理的文本](http://localhost:5000/tts?text=这里是需要推理的文本) (其他参数见`inference_stream_api.py`)
 > 
-> WebUI流式推理 (Windows)
+> WebUI流式推理演示 (Windows)
 > 
 > https://github.com/upbit/GPT-SoVITS/assets/302680/b7d2878d-8ea4-4cbf-9ad8-57e599d7ffc7
 > 
